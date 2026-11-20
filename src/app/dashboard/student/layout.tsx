@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, BookOpen, FolderOpen, CalendarDays, Award, Settings } from "lucide-react";
+import { LayoutDashboard, BookOpen, FolderOpen, CalendarDays, Award, Settings, GraduationCap } from "lucide-react";
 import { Sidebar, SidebarLink } from "@/components/dashboard/Sidebar";
 import { MobileTopbar } from "@/components/dashboard/MobileTopbar";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -12,6 +12,7 @@ const links: SidebarLink[] = [
   { href: "/dashboard/student/events", label: "Events", icon: CalendarDays },
   { href: "/dashboard/student/certificates", label: "Certificates", icon: Award },
   { href: "/dashboard/student/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard/student/training", label: "Training", icon: GraduationCap },
 ];
 
 export default function StudentDashboardLayout({ children }: { children: React.ReactNode }) {

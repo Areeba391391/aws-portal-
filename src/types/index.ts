@@ -53,6 +53,18 @@ export interface Course {
   instructor?: string;
   durationHours?: number;
   certificateEnabled: boolean;
+  startDate?: string;
+  endDate?: string;
+  learningObjectives?: string;
+  requiredSkills?: string;
+  whatsappUrl?: string;
+  requiredProjectCount?: number;
+  examEligibility?: {
+    requireTasks: boolean;
+    requireProjects: boolean;
+    requireSupervisorReady: boolean;
+  };
+  lifecycleStatus?: "active" | "completed" | "archived";
   /** Full course content — modules, lessons, and quizzes. Everything a
    * student sees inside a course lives here; there are no external links
    * (e.g. GitHub) required to view course content. Managed entirely from
@@ -60,13 +72,54 @@ export interface Course {
   syllabus: CourseModule[];
 }
 
+export type FormFieldType = "text" | "email" | "tel" | "textarea" | "select" | "number";
+
+export interface FormField {
+  id: string;
+  label: string;
+  type: FormFieldType;
+  required: boolean;
+  placeholder?: string;
+  options?: string[];
+}
+
+export type EventType = "Workshop" | "Hackathon" | "Bootcamp" | "Seminar";
+
+export const EVENT_TYPES: EventType[] = ["Workshop", "Hackathon", "Bootcamp", "Seminar"];
+
 export interface EventItem {
   id: string;
   title: string;
-  type: "Workshop" | "Hackathon" | "Bootcamp" | "Seminar";
+  type: EventType;
   date: string;
   mode: "Online" | "Onsite" | "Hybrid";
   description: string;
+  venue?: string;
+  maxParticipants?: number;
+  registrationOpen?: boolean;
+  registrationForm?: FormField[];
+  prizes?: string;
+  teamSizeMax?: number;
+  rules?: string;
+  /** Zoom / Google Meet / Teams URL shared with registered participants. */
+  meetingLink?: string;
+  /** Hackathons are always team-based; other event types opt in explicitly. */
+  teamRegistration?: boolean;
+  isCancelled?: boolean;
+}
+
+/** Hackathons always register as teams; other types only when the admin opts in. */
+export function eventNeedsTeamName(event: Pick<EventItem, "type" | "teamRegistration">) {
+  return event.type === "Hackathon" || event.teamRegistration === true;
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  isActive: boolean;
+  courseId?: string;
 }
 
 export type ResourceType =
@@ -103,6 +156,8 @@ export interface ResourceItem {
   uploadedAt: string;
   downloads: number;
   views: number;
+  displayOrder?: number;
+  materialCategory?: string;
 }
 
 export interface Review {
@@ -124,6 +179,10 @@ export interface SiteSettings {
   statEvents: string;
   statCertificates: string;
   statProjects: string;
+  platformName: string;
+  universityName: string;
+  maintenanceMode: boolean;
+  allowRegistrations: boolean;
 }
 
 export interface Certificate {
@@ -138,7 +197,7 @@ export interface Notification {
   userId: string;
   title: string;
   body: string;
-  type: "resource" | "course" | "certificate" | "event" | "review" | "system";
+  type: "resource" | "course" | "certificate" | "event" | "review" | "system" | "task" | "project" | "exam" | "announcement";
   read: boolean;
   createdAt: string;
   link?: string;

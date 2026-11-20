@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -32,30 +32,31 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect");
-  const { login, hasAccount } = useAuth();
+  const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
-  const email = watch("email");
-  const emailLooksNew = email && email.includes("@") && !hasAccount(email);
-
   async function onSubmit(values: FormValues) {
     setServerError(null);
-    const { error, user } = await login(values);
-    if (error) {
-      setServerError(error);
-      return;
+    try {
+      const { error, user } = await login(values);
+      if (error) {
+        setServerError(error);
+        return;
+      }
+      const destination = redirectTo || dashboardPathForRole(user?.role ?? "student");
+      // Full navigation ensures auth cookies are visible to middleware.
+      window.location.assign(destination);
+    } catch {
+      setServerError("Sign-in failed. Check your connection and try again.");
     }
-    router.push(redirectTo || dashboardPathForRole(user?.role ?? "student"));
   }
 
   return (
@@ -95,14 +96,6 @@ function LoginForm() {
               placeholder="you@example.com"
             />
             {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
-            {!errors.email && emailLooksNew && (
-              <p className="text-xs text-orange mt-1.5">
-                We don't see an account with this email —{" "}
-                <Link href="/register" className="underline font-medium">
-                  sign up instead?
-                </Link>
-              </p>
-            )}
           </div>
           <div>
             <label className="text-sm font-medium text-heading-light dark:text-white">Password</label>
@@ -128,17 +121,12 @@ function LoginForm() {
             <label className="flex items-center gap-2 text-paragraph-light dark:text-white/60">
               <input type="checkbox" className="accent-orange" /> Remember Me
             </label>
-            <a href="#" className="text-orange font-medium">Forgot Password?</a>
+            <Link href="/forgot-password" className="text-orange font-medium">Forgot Password?</Link>
           </div>
 
           {serverError && (
             <p className="text-sm text-red-500">
               {serverError}{" "}
-              {serverError.includes("sign up") && (
-                <Link href="/register" className="underline font-semibold">
-                  Sign up now
-                </Link>
-              )}
             </p>
           )}
 
@@ -148,8 +136,8 @@ function LoginForm() {
         </form>
 
         <p className="text-center text-sm text-paragraph-light dark:text-white/60 mt-6">
-          Don't have an account?{" "}
-          <Link href="/register" className="text-orange font-semibold">Register</Link>
+          Need portal access?{" "}
+          <Link href="/request-credentials" className="text-orange font-semibold">Request credentials</Link>
         </p>
       </motion.div>
     </div>

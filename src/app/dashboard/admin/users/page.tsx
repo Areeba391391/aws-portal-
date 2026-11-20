@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Search, KeyRound, Copy, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Mail } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { useAuth } from "@/context/AuthContext";
 import { Role } from "@/types";
@@ -9,15 +9,10 @@ import { Role } from "@/types";
 const emptyForm = {
   fullName: "",
   email: "",
-  password: "",
   role: "student" as Role,
   department: "",
   status: "Active" as "Active" | "Inactive",
 };
-
-function randomPassword() {
-  return Math.random().toString(36).slice(-8);
-}
 
 export default function AdminUsersPage() {
   const { users, user: currentUser, adminAddUser, adminUpdateUser, adminDeleteUser } = useAuth();
@@ -26,7 +21,6 @@ export default function AdminUsersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const filtered = users.filter(
     (u) =>
@@ -37,8 +31,7 @@ export default function AdminUsersPage() {
   function openAddModal() {
     setEditingId(null);
     setFormError(null);
-    setCopied(false);
-    setForm({ ...emptyForm, password: randomPassword() });
+    setForm(emptyForm);
     setModalOpen(true);
   }
 
@@ -47,7 +40,7 @@ export default function AdminUsersPage() {
     if (!u) return;
     setEditingId(id);
     setFormError(null);
-    setForm({ fullName: u.fullName, email: u.email, password: "", role: u.role, department: u.department ?? "", status: u.status });
+    setForm({ fullName: u.fullName, email: u.email, role: u.role, department: u.department ?? "", status: u.status });
     setModalOpen(true);
   }
 
@@ -85,7 +78,6 @@ export default function AdminUsersPage() {
       const { error } = await adminAddUser({
         fullName: form.fullName,
         email: form.email,
-        password: form.password || randomPassword(),
         role: form.role,
         department: form.department,
         status: form.status,
@@ -104,12 +96,12 @@ export default function AdminUsersPage() {
         <div>
           <h1 className="text-2xl font-bold text-heading-light dark:text-heading-dark">Users Management</h1>
           <p className="text-sm text-paragraph-light dark:text-paragraph-dark mt-1">
-            Every account here is a real, login-able user — creating or promoting someone here
-            immediately changes what they can access.
+            Invite founding team members and manage every portal account. New users receive a secure
+            email link to choose their own password.
           </p>
         </div>
         <button onClick={openAddModal} className="btn-primary !py-2.5 !px-5 text-sm">
-          <Plus className="h-4 w-4" /> Add User
+          <Plus className="h-4 w-4" /> Invite User
         </button>
       </div>
 
@@ -170,7 +162,7 @@ export default function AdminUsersPage() {
         </table>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? "Edit User" : "Add User"}>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? "Edit User" : "Invite User"}>
         <form onSubmit={saveUser} className="space-y-4">
           <div>
             <label className="text-sm font-medium text-heading-light dark:text-white">Full Name</label>
@@ -190,37 +182,17 @@ export default function AdminUsersPage() {
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               disabled={!!editingId}
               className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white disabled:opacity-50"
-              placeholder="email@example.com"
+              placeholder="name@gmail.com"
               required
             />
           </div>
 
           {!editingId && (
-            <div>
-              <label className="text-sm font-medium text-heading-light dark:text-white flex items-center gap-1.5">
-                <KeyRound className="h-3.5 w-3.5" /> Temporary Password
-              </label>
-              <div className="mt-2 flex gap-2">
-                <input
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="flex-1 rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white font-mono"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard?.writeText(form.password);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 1500);
-                  }}
-                  className="rounded-xl border border-border-light dark:border-white/20 px-3 flex-shrink-0"
-                >
-                  {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-                </button>
-              </div>
-              <p className="text-xs text-paragraph-light dark:text-white/50 mt-1.5">
-                Share this password with the user — they can change it later from Settings.
+            <div className="flex items-start gap-3 rounded-xl border border-orange/20 bg-orange/5 p-4">
+              <Mail className="mt-0.5 h-4 w-4 flex-shrink-0 text-orange" />
+              <p className="text-xs leading-relaxed text-paragraph-light dark:text-white/60">
+                A secure invitation will be sent to this email. The recipient sets their own password;
+                no password is shared or stored in plain text.
               </p>
             </div>
           )}
@@ -231,7 +203,7 @@ export default function AdminUsersPage() {
               <select
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
-                className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+                className="select-field mt-2"
               >
                 <option value="student">Student</option>
                 <option value="team">Team</option>
@@ -243,10 +215,10 @@ export default function AdminUsersPage() {
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value as "Active" | "Inactive" })}
-                className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+                className="select-field mt-2"
               >
-                <option>Active</option>
-                <option>Inactive</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
               </select>
             </div>
           </div>
@@ -263,7 +235,7 @@ export default function AdminUsersPage() {
           {formError && <p className="text-sm text-red-500">{formError}</p>}
 
           <button type="submit" className="btn-primary w-full justify-center">
-            {editingId ? "Save Changes" : "Add User"}
+            {editingId ? "Save Changes" : "Send Secure Invitation"}
           </button>
         </form>
       </Modal>

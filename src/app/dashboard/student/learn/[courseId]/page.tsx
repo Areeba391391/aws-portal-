@@ -284,7 +284,8 @@ export default function LearnCoursePage() {
     submitQuiz,
     getEnrollment,
     getCourseProgress,
-    checkAndIssueCertificate,
+    isCourseComplete,
+    isAwaitingFinalAssessment,
   } = useEnrollment();
 
   const course = courses.find((c) => c.id === params.courseId);
@@ -350,6 +351,8 @@ export default function LearnCoursePage() {
 
   const progress = getCourseProgress(course);
   const complete = enrollment?.certificateIssued;
+  const awaitingAssessment = isAwaitingFinalAssessment(course);
+  const contentComplete = isCourseComplete(course);
 
   return (
     <div className="max-w-6xl">
@@ -364,13 +367,31 @@ export default function LearnCoursePage() {
         <div>
           <h1 className="text-2xl font-bold text-heading-light dark:text-heading-dark">{course.title}</h1>
           <p className="text-sm text-paragraph-light dark:text-paragraph-dark mt-1">{progress}% complete</p>
+          <Link href={`/dashboard/student/training/${course.id}`} className="text-orange font-semibold text-sm mt-2 inline-block">
+            Open tasks, projects, and examination →
+          </Link>
         </div>
         {complete && (
           <div className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/10 text-emerald-500 px-4 py-2 text-sm font-semibold">
             <Award className="h-4 w-4" /> Certificate earned
           </div>
         )}
+        {!complete && awaitingAssessment && (
+          <div className="inline-flex items-center gap-2 rounded-xl bg-skyblue/10 text-skyblue px-4 py-2 text-sm font-semibold">
+            <Award className="h-4 w-4" /> Awaiting final assessment
+          </div>
+        )}
       </div>
+
+      {contentComplete && !complete && (
+        <div className="mb-6 rounded-xl border border-skyblue/30 bg-skyblue/10 px-5 py-4 text-sm text-heading-light dark:text-heading-dark">
+          <p className="font-semibold">Online content complete — final step remaining</p>
+          <p className="mt-1 text-paragraph-light dark:text-paragraph-dark">
+            You finished all lessons and quizzes. AWS SBG will schedule a short physical final assessment on campus.
+            Your certificate is issued only after you pass that exam.
+          </p>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Sidebar: modules → lessons → quiz → resources */}
@@ -464,10 +485,7 @@ export default function LearnCoursePage() {
                 <LessonView
                   lesson={lesson}
                   done={isLessonComplete(course.id, lesson.id)}
-                  onToggleDone={() => {
-                    toggleLessonComplete(course.id, lesson.id);
-                    setTimeout(() => checkAndIssueCertificate(course), 0);
-                  }}
+                  onToggleDone={() => toggleLessonComplete(course.id, lesson.id)}
                 />
               );
             })()}
@@ -480,10 +498,7 @@ export default function LearnCoursePage() {
                 <QuizView
                   questions={m.quiz}
                   result={enrollment?.quizResults[m.id]}
-                  onSubmit={(score, total) => {
-                    submitQuiz(course.id, m.id, score, total);
-                    setTimeout(() => checkAndIssueCertificate(course), 0);
-                  }}
+                  onSubmit={(score, total) => submitQuiz(course.id, m.id, score, total)}
                 />
               );
             })()}

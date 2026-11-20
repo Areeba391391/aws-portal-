@@ -12,9 +12,7 @@ export default function TeamDashboardPage() {
   const totalStudents = users.filter((u) => u.role === "student").length;
 
   const recentUsers = [...users]
-    .map((u) => ({ ...u, ts: u.id.startsWith("u_") ? Number(u.id.slice(2)) : 0 }))
-    .filter((u) => u.ts > 0)
-    .sort((a, b) => b.ts - a.ts)
+    .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
     .slice(0, 5);
 
   return (
@@ -58,7 +56,7 @@ export default function TeamDashboardPage() {
                     <p className="text-xs text-paragraph-light dark:text-paragraph-dark capitalize">{u.role}</p>
                   </div>
                   <span className="text-xs text-paragraph-light dark:text-paragraph-dark">
-                    {new Date(u.ts).toLocaleDateString()}
+                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}
                   </span>
                 </li>
               ))}

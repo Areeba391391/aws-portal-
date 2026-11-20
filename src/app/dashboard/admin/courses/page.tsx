@@ -104,7 +104,13 @@ export default function AdminCoursesPage() {
                 <td className="px-5 py-3.5 font-medium text-heading-light dark:text-heading-dark whitespace-nowrap">{c.title}</td>
                 <td className="px-5 py-3.5 text-paragraph-light dark:text-paragraph-dark">{c.category || "—"}</td>
                 <td className="px-5 py-3.5 text-paragraph-light dark:text-paragraph-dark">{c.level}</td>
-                <td className="px-5 py-3.5 text-paragraph-light dark:text-paragraph-dark">{c.syllabus.length}</td>
+                <td className="px-5 py-3.5 text-paragraph-light dark:text-paragraph-dark">
+                  {c.syllabus.length === 0 ? (
+                    <span className="text-orange">No syllabus yet</span>
+                  ) : (
+                    `${c.syllabus.length} module${c.syllabus.length === 1 ? "" : "s"}`
+                  )}
+                </td>
                 <td className="px-5 py-3.5">
                   <button
                     onClick={() => toggleStatus(c)}
@@ -116,8 +122,12 @@ export default function AdminCoursesPage() {
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-3">
-                    <Link href={`/dashboard/admin/courses/${c.id}/content`} className="text-orange hover:opacity-70 transition-opacity" title="Manage Content">
-                      <ListTree className="h-4 w-4" />
+                    <Link
+                      href={`/dashboard/admin/courses/${c.id}/content`}
+                      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-orange/10 px-3 py-1.5 text-xs font-semibold text-orange transition-colors hover:bg-orange hover:text-white"
+                      title="Add or edit modules, lessons, quizzes, and materials"
+                    >
+                      <ListTree className="h-3.5 w-3.5" /> Manage Content
                     </Link>
                     <button onClick={() => duplicateCourse(c.id)} className="text-paragraph-light dark:text-paragraph-dark hover:text-orange transition-colors" title="Duplicate"><Copy className="h-4 w-4" /></button>
                     <button onClick={() => openEditModal(c)} className="text-skyblue hover:text-orange transition-colors" title="Edit"><Pencil className="h-4 w-4" /></button>
@@ -178,11 +188,11 @@ export default function AdminCoursesPage() {
               <select
                 value={form.level}
                 onChange={(e) => setForm({ ...form, level: e.target.value as Course["level"] })}
-                className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+                className="select-field mt-2"
               >
-                <option>Beginner</option>
-                <option>Intermediate</option>
-                <option>Advanced</option>
+                <option value="Beginner">Beginner</option>
+                <option value="Intermediate">Intermediate</option>
+                <option value="Advanced">Advanced</option>
               </select>
             </div>
             <div>
@@ -200,10 +210,10 @@ export default function AdminCoursesPage() {
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value as Course["status"] })}
-                className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+                className="select-field mt-2"
               >
-                <option>Active</option>
-                <option>Draft</option>
+                <option value="Active">Active</option>
+                <option value="Draft">Draft</option>
               </select>
             </div>
           </div>
@@ -223,7 +233,7 @@ export default function AdminCoursesPage() {
               onChange={(e) => setForm({ ...form, certificateEnabled: e.target.checked })}
               className="accent-orange h-4 w-4"
             />
-            Issue a certificate when a student completes this course
+            Issue a certificate when a student completes online content and passes the physical final assessment
           </label>
           {!editingId && (
             <p className="text-xs text-paragraph-light dark:text-paragraph-dark">

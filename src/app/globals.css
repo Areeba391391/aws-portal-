@@ -11,14 +11,13 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  @apply font-heading;
+  @apply font-heading tracking-tight;
 }
 
 .font-numbers {
   font-family: var(--font-manrope), sans-serif;
 }
 
-/* Reduced motion respect */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
@@ -28,7 +27,6 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -41,7 +39,6 @@ h1, h2, h3, h4, h5, h6 {
   background: transparent;
 }
 
-/* Reusable utility classes */
 .container-page {
   @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
 }
@@ -50,8 +47,54 @@ h1, h2, h3, h4, h5, h6 {
   @apply py-16 md:py-24;
 }
 
+/* AWS SBG grid blueprint background */
+.grid-bg {
+  @apply relative bg-navy-dark;
+  background-image:
+    linear-gradient(rgba(255, 153, 0, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 153, 0, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.grid-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 30% 20%, rgba(255, 153, 0, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, rgba(20, 110, 180, 0.06) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* Decorative orange accent blocks (brand style) */
+.grid-accent-blocks::after {
+  content: "";
+  position: absolute;
+  top: 12%;
+  right: 8%;
+  width: 64px;
+  height: 64px;
+  background: #ff9900;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
 .card-surface {
   @apply bg-card-light dark:bg-card-dark border border-border-light dark:border-border-dark rounded-2xl shadow-card dark:shadow-card-dark transition-all duration-300;
+}
+
+.card-grid {
+  @apply card-surface relative overflow-hidden;
+}
+
+.card-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 153, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 153, 0, 0.03) 1px, transparent 1px);
+  background-size: 16px 16px;
+  pointer-events: none;
 }
 
 .btn-primary {
@@ -60,6 +103,10 @@ h1, h2, h3, h4, h5, h6 {
 
 .btn-secondary {
   @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-navy dark:border-white/30 bg-transparent px-6 py-3 font-semibold text-navy dark:text-white transition-all duration-300 hover:bg-navy hover:text-white dark:hover:bg-white/10 hover:-translate-y-0.5;
+}
+
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 px-6 py-3 font-semibold text-white transition-all duration-300 hover:bg-white/10 hover:border-orange/50;
 }
 
 .hover-lift {
@@ -81,4 +128,115 @@ h1, h2, h3, h4, h5, h6 {
   );
   background-size: 200% 100%;
   animation: shimmer 2.5s infinite;
+}
+
+/* Orange info bar (brand footer strip) */
+.brand-bar {
+  @apply bg-orange text-white font-semibold text-sm py-3 px-6 text-center tracking-wide;
+}
+
+/* Form inputs — consistent across portal */
+.input-field {
+  @apply w-full rounded-xl border border-border-light dark:border-border-dark bg-transparent px-4 py-2.5 text-sm outline-none transition-colors focus:border-orange dark:text-heading-dark;
+}
+
+/* Dropdowns — native selects need an opaque background and a custom arrow,
+   otherwise the closed control and the popup list are unreadable on dark cards. */
+.select-field {
+  @apply w-full appearance-none rounded-xl border border-border-light bg-card-light px-4 py-2.5 pr-10 text-sm text-heading-light outline-none transition-colors focus:border-orange dark:border-border-dark dark:bg-card-dark dark:text-heading-dark;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FF9900' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+}
+
+.select-field:disabled {
+  @apply cursor-not-allowed opacity-60;
+}
+
+/* Compact variant for inline/table filters */
+.select-field-sm {
+  @apply select-field rounded-lg px-3 py-1.5 pr-8 text-xs;
+  background-position: right 0.5rem center;
+  background-size: 0.85rem;
+}
+
+/* For panels that stay dark regardless of the theme (public grid surfaces) */
+.select-field-dark {
+  @apply select-field border-border-dark bg-navy-dark text-white;
+}
+
+select option,
+select optgroup {
+  background-color: #ffffff;
+  color: #111827;
+}
+
+.dark select option,
+.dark select optgroup,
+.select-field-dark option,
+.select-field-dark optgroup {
+  background-color: #151e2d;
+  color: #f3f4f6;
+}
+
+/* Native date/time pickers are invisible on dark surfaces without this. */
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.6);
+  cursor: pointer;
+}
+
+.badge-hackathon {
+  @apply inline-flex items-center gap-1 rounded-full bg-orange/15 px-3 py-1 text-xs font-bold uppercase tracking-wider text-orange border border-orange/30;
+}
+
+.badge-workshop {
+  @apply inline-flex items-center gap-1 rounded-full bg-skyblue/15 px-3 py-1 text-xs font-bold uppercase tracking-wider text-skyblue border border-skyblue/30;
+}
+
+/* Lightweight, compositor-only hero animation */
+.hero-orbit {
+  position: absolute;
+  border: 1px solid rgba(255, 153, 0, 0.22);
+  border-radius: 9999px;
+  will-change: transform;
+}
+
+.hero-orbit-outer {
+  inset: 12px;
+  animation: hero-spin 28s linear infinite;
+}
+
+.hero-orbit-inner {
+  inset: 82px;
+  border-style: dashed;
+  animation: hero-spin-reverse 18s linear infinite;
+}
+
+.hero-node {
+  @apply absolute flex h-12 w-12 items-center justify-center rounded-xl border border-orange/30 bg-navy-dark text-orange shadow-glow;
+}
+
+.hero-node svg {
+  @apply h-5 w-5;
+}
+
+.hero-core {
+  @apply flex h-40 w-40 flex-col items-center justify-center gap-1 rounded-full border border-orange/30 bg-navy-dark/90 shadow-glow;
+  animation: hero-pulse 4s ease-in-out infinite;
+}
+
+@keyframes hero-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes hero-spin-reverse {
+  to { transform: rotate(-360deg); }
+}
+
+@keyframes hero-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 35px rgba(255, 153, 0, 0.12); }
+  50% { transform: scale(1.035); box-shadow: 0 0 55px rgba(255, 153, 0, 0.22); }
 }

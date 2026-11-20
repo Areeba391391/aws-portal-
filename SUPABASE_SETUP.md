@@ -4,6 +4,13 @@
 Supabase Dashboard → SQL Editor → New query → paste the entire contents of
 `supabase/schema.sql` → Run.
 
+Already-live databases only need the incremental migrations — run
+`scripts/migrate-v5.sql` (final-assessment tracking) and
+`scripts/migrate-v6.sql` (event meeting links, cancellation, team
+registration) the same way. Until v6 is applied, the event form still saves,
+it just silently drops the meeting link / cancelled / team-registration
+fields.
+
 It's safe to run more than once. It creates every table (profiles, courses,
 enrollments, events, event_registrations, resources, reviews, notifications,
 site_settings, contact_messages), sets up Row Level Security so students can
@@ -27,6 +34,26 @@ can't do that, by design, since only the account owner should set their own
 password).
 
 ## 3. Auth settings
+
+### 3a. URL configuration — REQUIRED, or invite emails break
+Supabase Dashboard → **Authentication → URL Configuration**:
+
+| Field | Value |
+| --- | --- |
+| Site URL | `https://aws-sbg-portal-ten.vercel.app` |
+| Redirect URLs | `https://aws-sbg-portal-ten.vercel.app/**` and `http://localhost:3000/**` |
+
+If Site URL is left at `http://localhost:3000`, every invitation email links to
+localhost and fails with `ERR_CONNECTION_REFUSED` on the student's machine.
+Supabase falls back to Site URL whenever the app's `redirectTo` is not in the
+Redirect URLs allow-list, so both fields must be set.
+
+As a safety net the app does not depend on this alone: after approving a
+request, Dashboard → Credential Requests shows a **backup activation link** on
+our own domain (`/reset-password?token_hash=...`) that the admin can copy and
+send directly. That link works regardless of the Supabase URL configuration.
+
+### 3b. Email provider
 Supabase Dashboard → Authentication → Providers → Email:
 - **Turn OFF "Confirm email"** for this app to work as designed — the
   sign-up form logs the student straight in and redirects to their dashboard.

@@ -37,7 +37,7 @@ export function Sidebar({
         </span>
         <div>
           <p className="font-heading font-bold text-sm leading-none">AWS SBG</p>
-          <p className="text-[11px] text-white/50 mt-1">{roleLabel}</p>
+          <p className="text-[11px] text-white/50 mt-1">UET Taxila · {roleLabel}</p>
         </div>
       </div>
 

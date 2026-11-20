@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { buildActivationLink, resolveSiteOrigin } from "@/lib/siteUrl";
+import { isRealGmailAddress } from "@/lib/emailPolicy";
 
 /**
  * Admin-only user management (Dashboard → Users).
  *
- * Creating an account with an admin-chosen password, or force-deleting an
- * account, requires Supabase's Admin API — which needs the SERVICE ROLE key.
+ * Inviting an account, or force-deleting an account, requires Supabase's
+ * Admin API — which needs the SERVICE ROLE key.
  * That key must never reach the browser, so this whole operation lives in a
  * server route. Every request is re-checked here: we look up the caller's
  * own session + profile role and reject anything from a non-admin, even if
@@ -30,19 +32,43 @@ export async function POST(req: NextRequest) {
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: check.status });
 
   const body = await req.json();
-  const { fullName, email, password, role, department, status } = body;
-  if (!fullName || !email || !password) {
-    return NextResponse.json({ error: "Full name, email, and password are required." }, { status: 400 });
+  const { fullName, email, role, department, status } = body;
+  if (!fullName || !email) {
+    return NextResponse.json({ error: "Full name and email are required." }, { status: 400 });
+  }
+
+  const gmail = isRealGmailAddress(String(email));
+  if (!gmail.ok) {
+    return NextResponse.json({ error: gmail.error }, { status: 400 });
   }
 
   const admin = createAdminClient();
-  const { data, error } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { full_name: fullName, role: role ?? "student" },
+
+  // Create an approved request first so the database invite-only trigger
+  // permits the Supabase invitation to create the user's profile.
+  const { data: requestRow, error: requestError } = await admin
+    .from("credential_requests")
+    .insert({
+      full_name: fullName,
+      email: gmail.email,
+      department_session: department || "AWS SBG",
+      study_year: "Graduate",
+      status: "approved",
+      reviewed_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+  if (requestError) return NextResponse.json({ error: requestError.message }, { status: 400 });
+
+  const origin = resolveSiteOrigin(req);
+  const { data, error } = await admin.auth.admin.inviteUserByEmail(gmail.email, {
+    data: { full_name: fullName, role: role ?? "student", department: department ?? "" },
+    redirectTo: `${origin}/reset-password`,
   });
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) {
+    await admin.from("credential_requests").delete().eq("id", requestRow.id);
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
 
   // The DB trigger (handle_new_user) already created a basic profile row —
   // fill in the extra admin-provided fields (role/department/status).
@@ -51,7 +77,19 @@ export async function POST(req: NextRequest) {
     .update({ role: role ?? "student", department: department ?? null, status: status ?? "Active" })
     .eq("id", data.user.id);
 
-  return NextResponse.json({ ok: true });
+  await admin
+    .from("credential_requests")
+    .update({ invited_user_id: data.user.id, reviewed_by: null })
+    .eq("id", requestRow.id);
+
+  const { data: linkData } = await admin.auth.admin.generateLink({ type: "recovery", email: gmail.email });
+  const tokenHash = linkData?.properties?.hashed_token;
+
+  return NextResponse.json({
+    ok: true,
+    message: "Secure invitation sent by email.",
+    activationLink: tokenHash ? buildActivationLink(origin, tokenHash, "recovery") : null,
+  });
 }
 
 export async function PATCH(req: NextRequest) {

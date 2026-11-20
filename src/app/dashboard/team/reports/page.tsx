@@ -8,6 +8,7 @@ import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
 import { Course } from "@/types";
 import { readAllEnrollments } from "@/lib/crossUserStores";
+import { useVtms } from "@/context/VtmsContext";
 
 interface Enrollment {
   courseId: string;
@@ -32,7 +33,8 @@ function courseCompletionRate(course: Course, allEnrollments: Enrollment[]): num
 
 export default function TeamReportsPage() {
   const { courses, events } = useData();
-  const { users } = useAuth();
+  const { users, user } = useAuth();
+  const { staff, ready: trainingReady, migrationRequired } = useVtms();
   const totalStudents = users.filter((u) => u.role === "student").length;
 
   const [allEnrollments, setAllEnrollments] = useState<Enrollment[]>([]);
@@ -42,6 +44,10 @@ export default function TeamReportsPage() {
   }, []);
 
   const certificatesIssued = allEnrollments.filter((e) => e.certificateIssued).length;
+  const assignedCourseIds = new Set(staff.filter((item) => item.userId === user?.id).map((item) => item.courseId));
+  const reportCourses = !trainingReady || migrationRequired
+    ? courses
+    : courses.filter((course) => assignedCourseIds.has(course.id) || allEnrollments.some((item) => item.courseId === course.id));
 
   return (
     <div className="max-w-5xl space-y-8">
@@ -61,10 +67,10 @@ export default function TeamReportsPage() {
 
       <div className="card-surface p-6 space-y-5">
         <h3 className="font-heading font-semibold text-heading-light dark:text-heading-dark">Average course completion</h3>
-        {courses.length === 0 ? (
-          <p className="text-sm text-paragraph-light dark:text-paragraph-dark">No courses yet.</p>
+        {reportCourses.length === 0 ? (
+          <p className="text-sm text-paragraph-light dark:text-paragraph-dark">No assigned course enrolments to report yet.</p>
         ) : (
-          courses.map((c) => <ProgressBar key={c.id} value={courseCompletionRate(c, allEnrollments)} label={c.title} />)
+          reportCourses.map((c) => <ProgressBar key={c.id} value={courseCompletionRate(c, allEnrollments)} label={c.title} />)
         )}
       </div>
     </div>

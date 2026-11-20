@@ -11,9 +11,13 @@ import {
   QuizQuestion,
   Review,
   Notification,
+  Announcement,
 } from "@/types";
 import { createClient } from "@/lib/supabase/client";
+import { normalizeEventDateForStorage } from "@/lib/eventDates";
+import { courseTrainingFromRow } from "@/lib/vtms";
 import { useAuth } from "@/context/AuthContext";
+import { usePathname } from "next/navigation";
 
 export interface LearningPath {
   id: string;
@@ -30,10 +34,11 @@ interface DataContextValue {
   siteSettings: SiteSettings;
   reviews: Review[];
   notifications: Notification[];
+  announcements: Announcement[];
   loading: boolean;
 
   addCourse: (c: Omit<Course, "id" | "syllabus" | "modules" | "certificateEnabled"> & { certificateEnabled?: boolean }) => Promise<void>;
-  updateCourse: (id: string, c: Partial<Omit<Course, "id">>) => Promise<void>;
+  updateCourse: (id: string, c: Partial<Omit<Course, "id">>) => Promise<{ error?: string }>;
   deleteCourse: (id: string) => Promise<void>;
   duplicateCourse: (id: string) => Promise<void>;
 
@@ -42,7 +47,10 @@ interface DataContextValue {
   deleteModule: (courseId: string, moduleId: string) => Promise<void>;
   reorderModules: (courseId: string, orderedIds: string[]) => Promise<void>;
 
+  moveModule: (courseId: string, moduleId: string, direction: -1 | 1) => Promise<void>;
+
   addLesson: (courseId: string, moduleId: string, lesson: Omit<Lesson, "id">) => Promise<void>;
+  moveLesson: (courseId: string, moduleId: string, lessonId: string, direction: -1 | 1) => Promise<void>;
   updateLesson: (courseId: string, moduleId: string, lessonId: string, lesson: Partial<Omit<Lesson, "id">>) => Promise<void>;
   deleteLesson: (courseId: string, moduleId: string, lessonId: string) => Promise<void>;
 
@@ -74,6 +82,9 @@ interface DataContextValue {
 
   updateSiteSettings: (s: Partial<SiteSettings>) => Promise<void>;
 
+  addAnnouncement: (a: Omit<Announcement, "id" | "createdAt" | "isActive">) => Promise<void>;
+  deleteAnnouncement: (id: string) => Promise<void>;
+
   refresh: () => Promise<void>;
 }
 
@@ -81,13 +92,17 @@ const DataContext = createContext<DataContextValue | null>(null);
 
 const defaultSiteSettings: SiteSettings = {
   heroTitle: "Learn AWS Cloud. Build. Innovate.",
-  heroDescription: "A community of student builders growing their cloud computing skills.",
+  heroDescription: "Founded in 2026 at UET Taxila — AWS SBG UET Taxila is a student-led community learning, building, and innovating on AWS Cloud.",
   contactEmail: "hello@awssbg.com",
   contactPhone: "",
   statMembers: "0",
   statEvents: "0",
   statCertificates: "0",
   statProjects: "0",
+  platformName: "AWS SBG UET Taxila",
+  universityName: "UET Taxila",
+  maintenanceMode: false,
+  allowRegistrations: false,
 };
 
 // ---------- row <-> app-type mapping ----------
@@ -106,6 +121,7 @@ function courseFromRow(row: any): Course {
     durationHours: row.duration_hours ?? undefined,
     certificateEnabled: row.certificate_enabled ?? true,
     syllabus: row.syllabus ?? [],
+    ...courseTrainingFromRow(row),
   };
 }
 
@@ -117,6 +133,40 @@ function eventFromRow(row: any): EventItem {
     date: row.event_date,
     mode: row.mode,
     description: row.description ?? "",
+    venue: row.venue ?? undefined,
+    maxParticipants: row.max_participants ?? undefined,
+    registrationOpen: row.registration_open ?? true,
+    registrationForm: row.registration_form ?? [],
+    prizes: row.prizes ?? undefined,
+    teamSizeMax: row.team_size_max ?? undefined,
+    rules: row.rules ?? undefined,
+    meetingLink: row.meeting_link ?? undefined,
+    teamRegistration: row.team_registration ?? false,
+    isCancelled: row.is_cancelled ?? false,
+  };
+}
+
+/** Columns added in migrate-v6.sql. Requests degrade gracefully until it is applied. */
+const EVENT_V6_COLUMNS = ["meeting_link", "team_registration", "is_cancelled"] as const;
+
+function isMissingV6Column(message?: string) {
+  return Boolean(message && EVENT_V6_COLUMNS.some((column) => message.includes(column)));
+}
+
+function withoutV6Columns(payload: Record<string, unknown>) {
+  const next = { ...payload };
+  for (const column of EVENT_V6_COLUMNS) delete next[column];
+  return next;
+}
+
+function announcementFromRow(row: any): Announcement {
+  return {
+    id: row.id,
+    title: row.title,
+    message: row.message,
+    createdAt: row.created_at,
+    isActive: row.is_active ?? true,
+    courseId: row.course_id ?? undefined,
   };
 }
 
@@ -138,6 +188,8 @@ function resourceFromRow(row: any): ResourceItem {
     uploadedAt: row.created_at,
     downloads: row.downloads ?? 0,
     views: row.views ?? 0,
+    displayOrder: row.display_order ?? 0,
+    materialCategory: row.material_category ?? undefined,
   };
 }
 
@@ -176,12 +228,17 @@ function siteSettingsFromRow(row: any): SiteSettings {
     statEvents: row.stat_events ?? "0",
     statCertificates: row.stat_certificates ?? "0",
     statProjects: row.stat_projects ?? "0",
+    platformName: row.platform_name ?? "AWS SBG UET Taxila",
+    universityName: row.university_name ?? "",
+    maintenanceMode: row.maintenance_mode ?? false,
+    allowRegistrations: row.allow_registrations ?? true,
   };
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState(() => createClient());
   const { user } = useAuth();
+  const pathname = usePathname();
   const userRef = useRef(user);
   userRef.current = user;
 
@@ -192,18 +249,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(defaultSiteSettings);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
 
   const learningPaths: LearningPath[] = learningPathRows;
 
   const refreshCourses = useCallback(async () => {
-    const { data } = await supabase.from("courses").select("*").order("created_at", { ascending: false });
+    const { data } = await supabase
+      .from("courses")
+      .select(
+        "id,title,description,level,modules,icon,status,thumbnail,category,instructor,duration_hours,certificate_enabled,syllabus,start_date,end_date,learning_objectives,required_skills,whatsapp_url,required_project_count,exam_eligibility,lifecycle_status,created_at"
+      )
+      .order("created_at", { ascending: false });
     if (data) setCourses(data.map(courseFromRow));
   }, [supabase]);
 
   const refreshEvents = useCallback(async () => {
-    const { data } = await supabase.from("events").select("*").order("event_date", { ascending: true });
-    if (data) setEvents(data.map(eventFromRow));
+    const { data, error } = await supabase.from("events").select("*").order("event_date", { ascending: true });
+    if (!error && data) {
+      setEvents(data.map(eventFromRow));
+      return;
+    }
+    // Older projects may not have v6 columns yet — fall back to core fields.
+    const legacy = await supabase
+      .from("events")
+      .select("id,title,type,description,event_date,mode,venue,max_participants,registration_open,registration_form,prizes,team_size_max,rules,created_at")
+      .order("event_date", { ascending: true });
+    if (legacy.data) setEvents(legacy.data.map(eventFromRow));
   }, [supabase]);
 
   const refreshResources = useCallback(async () => {
@@ -222,7 +294,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   const refreshSiteSettings = useCallback(async () => {
-    const { data } = await supabase.from("site_settings").select("*").eq("id", true).single();
+    const { data } = await supabase.from("site_settings").select("*").eq("id", true).maybeSingle();
     if (data) setSiteSettings(siteSettingsFromRow(data));
   }, [supabase]);
 
@@ -233,10 +305,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     const { data } = await supabase
       .from("notifications")
-      .select("*")
+      .select("id,user_id,title,message,type,is_read,created_at,link")
       .eq("user_id", userRef.current.id)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(40);
     if (data) setNotifications(data.map(notificationFromRow));
+  }, [supabase]);
+
+  const refreshAnnouncements = useCallback(async () => {
+    const { data } = await supabase
+      .from("announcements")
+      .select("id,title,message,created_at,is_active,course_id")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (data) setAnnouncements(data.map(announcementFromRow));
   }, [supabase]);
 
   const refresh = useCallback(async () => {
@@ -248,16 +330,72 @@ export function DataProvider({ children }: { children: ReactNode }) {
       refreshReviews(),
       refreshSiteSettings(),
       refreshNotifications(),
+      refreshAnnouncements(),
     ]);
-  }, [refreshCourses, refreshEvents, refreshResources, refreshLearningPaths, refreshReviews, refreshSiteSettings, refreshNotifications]);
+  }, [refreshCourses, refreshEvents, refreshResources, refreshLearningPaths, refreshReviews, refreshSiteSettings, refreshNotifications, refreshAnnouncements]);
+
+  const loadersRef = useRef({
+    refresh,
+    refreshCourses,
+    refreshEvents,
+    refreshSiteSettings,
+    refreshAnnouncements,
+  });
+  loadersRef.current = { refresh, refreshCourses, refreshEvents, refreshSiteSettings, refreshAnnouncements };
+
+  const loadedBucketsRef = useRef<Set<string>>(new Set());
+  const lastUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    (async () => {
-      await refresh();
-      setLoading(false);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const nextId = user?.id ?? null;
+    if (lastUserIdRef.current !== nextId) {
+      lastUserIdRef.current = nextId;
+      loadedBucketsRef.current.delete("dashboard");
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    let active = true;
+    const loaders = loadersRef.current;
+
+    async function loadForRoute() {
+      const jobs: Promise<void>[] = [];
+      const mark = (bucket: string, job: Promise<void>) => {
+        if (loadedBucketsRef.current.has(bucket)) return;
+        jobs.push(
+          job.then(() => {
+            if (active) loadedBucketsRef.current.add(bucket);
+          })
+        );
+      };
+
+      if (pathname.startsWith("/dashboard")) {
+        // Full dashboard payload once per session area — not on every sub-route click.
+        if (!loadedBucketsRef.current.has("dashboard")) {
+          setLoading(true);
+          await loaders.refresh();
+          if (active) {
+            loadedBucketsRef.current.add("dashboard");
+            setLoading(false);
+          }
+        }
+        return;
+      }
+
+      setLoading(true);
+      if (pathname === "/" || pathname.startsWith("/courses")) mark("courses", loaders.refreshCourses());
+      if (pathname === "/" || pathname.startsWith("/events") || pathname.startsWith("/hackathons")) mark("events", loaders.refreshEvents());
+      if (pathname === "/" || pathname.startsWith("/contact") || pathname.startsWith("/about")) mark("settings", loaders.refreshSiteSettings());
+      if (pathname === "/" || pathname.startsWith("/dashboard")) mark("announcements", loaders.refreshAnnouncements());
+      await Promise.all(jobs);
+      if (active) setLoading(false);
+    }
+
+    loadForRoute();
+    return () => {
+      active = false;
+    };
+  }, [pathname]);
 
   // Re-load notifications whenever who's logged in changes, and keep them
   // live via Supabase Realtime — this is what makes the reminder job (which
@@ -277,8 +415,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => {
       supabase.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, refreshNotifications, supabase]);
 
   // ---- helper: mutate a course's nested syllabus JSONB and persist ----
   async function persistCourse(courseId: string, mutate: (c: Course) => Course) {
@@ -309,6 +446,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     siteSettings,
     reviews,
     notifications,
+    announcements,
     loading,
     refresh,
 
@@ -350,8 +488,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (c.instructor !== undefined) patch.instructor = c.instructor;
       if (c.durationHours !== undefined) patch.duration_hours = c.durationHours;
       if (c.certificateEnabled !== undefined) patch.certificate_enabled = c.certificateEnabled;
-      await supabase.from("courses").update(patch).eq("id", id);
-      setCourses((prev) => prev.map((x) => (x.id === id ? { ...x, ...c } : x)));
+      if (c.startDate !== undefined) patch.start_date = c.startDate || null;
+      if (c.endDate !== undefined) patch.end_date = c.endDate || null;
+      if (c.learningObjectives !== undefined) patch.learning_objectives = c.learningObjectives;
+      if (c.requiredSkills !== undefined) patch.required_skills = c.requiredSkills;
+      if (c.whatsappUrl !== undefined) patch.whatsapp_url = c.whatsappUrl || null;
+      if (c.requiredProjectCount !== undefined) patch.required_project_count = c.requiredProjectCount;
+      if (c.examEligibility !== undefined) patch.exam_eligibility = c.examEligibility;
+      if (c.lifecycleStatus !== undefined) patch.lifecycle_status = c.lifecycleStatus;
+      const { error } = await supabase.from("courses").update(patch).eq("id", id);
+      if (error) {
+        alert(`Couldn't save course: ${error.message}`);
+        return { error: error.message };
+      }
+      setCourses((prev) =>
+        prev.map((x) =>
+          x.id === id
+            ? { ...x, ...c, whatsappUrl: c.whatsappUrl ? c.whatsappUrl : c.whatsappUrl === "" ? undefined : x.whatsappUrl }
+            : x
+        )
+      );
+      return {};
     },
     deleteCourse: async (id) => {
       await supabase.from("courses").delete().eq("id", id);
@@ -362,24 +519,43 @@ export function DataProvider({ children }: { children: ReactNode }) {
     duplicateCourse: async (id) => {
       const original = courses.find((c) => c.id === id);
       if (!original) return;
-      const { data } = await supabase
-        .from("courses")
-        .insert({
-          title: `${original.title} (Copy)`,
-          description: original.description,
-          level: original.level,
-          icon: original.icon,
-          status: "Draft",
-          thumbnail: original.thumbnail,
-          category: original.category,
-          instructor: original.instructor,
-          duration_hours: original.durationHours,
-          certificate_enabled: original.certificateEnabled,
-          modules: original.syllabus.length,
-          syllabus: original.syllabus,
-        })
-        .select()
-        .single();
+      const payload = {
+        title: `${original.title} (Copy)`,
+        description: original.description,
+        level: original.level,
+        icon: original.icon,
+        status: "Draft" as const,
+        thumbnail: original.thumbnail,
+        category: original.category,
+        instructor: original.instructor,
+        duration_hours: original.durationHours,
+        certificate_enabled: original.certificateEnabled,
+        start_date: original.startDate ?? null,
+        end_date: original.endDate ?? null,
+        learning_objectives: original.learningObjectives ?? null,
+        required_skills: original.requiredSkills ?? null,
+        whatsapp_url: original.whatsappUrl ?? null,
+        required_project_count: original.requiredProjectCount ?? 2,
+        exam_eligibility: original.examEligibility ?? {},
+        lifecycle_status: original.lifecycleStatus ?? "active",
+        modules: original.syllabus.length,
+        syllabus: original.syllabus,
+      };
+      let { data, error } = await supabase.from("courses").insert(payload).select().single();
+      if (error && /start_date|whatsapp_url|lifecycle_status|required_project_count|exam_eligibility|learning_objectives|required_skills/.test(error.message)) {
+        const {
+          start_date: _start,
+          end_date: _end,
+          learning_objectives: _objectives,
+          required_skills: _skills,
+          whatsapp_url: _whatsapp,
+          required_project_count: _count,
+          exam_eligibility: _rules,
+          lifecycle_status: _lifecycle,
+          ...legacy
+        } = payload;
+        ({ data, error } = await supabase.from("courses").insert(legacy).select().single());
+      }
       if (!data) return;
       const newCourse = courseFromRow(data);
       setCourses((prev) => [newCourse, ...prev]);
@@ -432,9 +608,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
           .filter((m): m is CourseModule => Boolean(m)),
       })),
 
+    moveModule: (courseId, moduleId, direction) =>
+      persistCourse(courseId, (c) => {
+        const ordered = [...c.syllabus].sort((a, b) => a.order - b.order);
+        const from = ordered.findIndex((m) => m.id === moduleId);
+        const to = from + direction;
+        if (from < 0 || to < 0 || to >= ordered.length) return c;
+        [ordered[from], ordered[to]] = [ordered[to], ordered[from]];
+        return { ...c, syllabus: ordered.map((m, i) => ({ ...m, order: i + 1 })) };
+      }),
+
     addLesson: (courseId, moduleId, lesson) =>
       persistCourse(courseId, (c) =>
         withCourseModule(c, moduleId, (m) => ({ ...m, lessons: [...m.lessons, { ...lesson, id: `l_${Date.now()}` }] }))
+      ),
+    moveLesson: (courseId, moduleId, lessonId, direction) =>
+      persistCourse(courseId, (c) =>
+        withCourseModule(c, moduleId, (m) => {
+          const lessons = [...m.lessons];
+          const from = lessons.findIndex((l) => l.id === lessonId);
+          const to = from + direction;
+          if (from < 0 || to < 0 || to >= lessons.length) return m;
+          [lessons[from], lessons[to]] = [lessons[to], lessons[from]];
+          return { ...m, lessons };
+        })
       ),
     updateLesson: (courseId, moduleId, lessonId, lesson) =>
       persistCourse(courseId, (c) =>
@@ -465,11 +662,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ),
 
     addEvent: async (e) => {
-      const { data, error } = await supabase
-        .from("events")
-        .insert({ title: e.title, type: e.type, event_date: e.date, mode: e.mode, description: e.description })
-        .select()
-        .single();
+      const payload: Record<string, unknown> = {
+        title: e.title,
+        type: e.type,
+        event_date: normalizeEventDateForStorage(e.date),
+        mode: e.mode,
+        description: e.description,
+        venue: e.venue,
+        max_participants: e.maxParticipants,
+        registration_open: e.registrationOpen ?? true,
+        registration_form: e.registrationForm ?? [],
+        prizes: e.prizes,
+        team_size_max: e.teamSizeMax,
+        rules: e.rules,
+        meeting_link: e.meetingLink || null,
+        team_registration: e.teamRegistration ?? false,
+        is_cancelled: e.isCancelled ?? false,
+      };
+
+      let { data, error } = await supabase.from("events").insert(payload).select().single();
+      if (isMissingV6Column(error?.message)) {
+        ({ data, error } = await supabase.from("events").insert(withoutV6Columns(payload)).select().single());
+      }
       if (error) {
         console.error("Failed to add event:", error.message);
         alert(`Couldn't add event: ${error.message}`);
@@ -481,10 +695,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const patch: Record<string, unknown> = {};
       if (e.title !== undefined) patch.title = e.title;
       if (e.type !== undefined) patch.type = e.type;
-      if (e.date !== undefined) patch.event_date = e.date;
+      if (e.date !== undefined) patch.event_date = normalizeEventDateForStorage(e.date);
       if (e.mode !== undefined) patch.mode = e.mode;
       if (e.description !== undefined) patch.description = e.description;
-      await supabase.from("events").update(patch).eq("id", id);
+      if (e.venue !== undefined) patch.venue = e.venue;
+      if (e.maxParticipants !== undefined) patch.max_participants = e.maxParticipants;
+      if (e.registrationOpen !== undefined) patch.registration_open = e.registrationOpen;
+      if (e.registrationForm !== undefined) patch.registration_form = e.registrationForm;
+      if (e.prizes !== undefined) patch.prizes = e.prizes;
+      if (e.teamSizeMax !== undefined) patch.team_size_max = e.teamSizeMax;
+      if (e.rules !== undefined) patch.rules = e.rules;
+      if (e.meetingLink !== undefined) patch.meeting_link = e.meetingLink || null;
+      if (e.teamRegistration !== undefined) patch.team_registration = e.teamRegistration;
+      if (e.isCancelled !== undefined) patch.is_cancelled = e.isCancelled;
+
+      let { error } = await supabase.from("events").update(patch).eq("id", id);
+      if (isMissingV6Column(error?.message)) {
+        ({ error } = await supabase.from("events").update(withoutV6Columns(patch)).eq("id", id));
+      }
+      if (error) {
+        console.error("Failed to update event:", error.message);
+        alert(`Couldn't save event: ${error.message}`);
+        return;
+      }
       setEvents((prev) => prev.map((x) => (x.id === id ? { ...x, ...e } : x)));
     },
     deleteEvent: async (id) => {
@@ -508,6 +741,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
           download_allowed: r.downloadAllowed,
           preview_allowed: r.previewAllowed,
           uploaded_by: r.uploadedBy,
+          ...(r.displayOrder !== undefined ? { display_order: r.displayOrder } : {}),
+          ...(r.materialCategory ? { material_category: r.materialCategory } : {}),
         })
         .select()
         .single();
@@ -609,8 +844,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (settings.statEvents !== undefined) patch.stat_events = settings.statEvents;
       if (settings.statCertificates !== undefined) patch.stat_certificates = settings.statCertificates;
       if (settings.statProjects !== undefined) patch.stat_projects = settings.statProjects;
+      if (settings.platformName !== undefined) patch.platform_name = settings.platformName;
+      if (settings.universityName !== undefined) patch.university_name = settings.universityName;
+      if (settings.maintenanceMode !== undefined) patch.maintenance_mode = settings.maintenanceMode;
+      if (settings.allowRegistrations !== undefined) patch.allow_registrations = settings.allowRegistrations;
       await supabase.from("site_settings").update(patch).eq("id", true);
       setSiteSettings((prev) => ({ ...prev, ...settings }));
+    },
+
+    addAnnouncement: async (a) => {
+      const { data, error } = await supabase
+        .from("announcements")
+        .insert({ title: a.title, message: a.message, created_by: userRef.current?.id })
+        .select()
+        .single();
+      if (error) {
+        alert(`Couldn't post announcement: ${error.message}`);
+        return;
+      }
+      if (data) setAnnouncements((prev) => [announcementFromRow(data), ...prev]);
+    },
+    deleteAnnouncement: async (id) => {
+      await supabase.from("announcements").delete().eq("id", id);
+      setAnnouncements((prev) => prev.filter((a) => a.id !== id));
     },
   };
 

@@ -4,15 +4,18 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Plus, Pencil, Trash2, MapPin } from "lucide-react";
 import { Modal } from "@/components/Modal";
+import { EventStatusBadge } from "@/components/EventStatusBadge";
 import { useData } from "@/context/DataContext";
-import { EventItem } from "@/types";
+import { EventItem, EventType, EVENT_TYPES } from "@/types";
+import { getEventStatus, isValidMeetingLink, toDateInputValue } from "@/lib/eventDates";
 
 const emptyForm = {
   title: "",
-  type: "Workshop" as EventItem["type"],
+  type: "Workshop" as EventType,
   date: new Date().toISOString().slice(0, 10),
   mode: "Online" as EventItem["mode"],
   description: "",
+  meetingLink: "",
 };
 
 export default function TeamEventsPage() {
@@ -20,26 +23,41 @@ export default function TeamEventsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [formError, setFormError] = useState("");
 
   function openAddModal() {
     setEditingId(null);
     setForm(emptyForm);
+    setFormError("");
     setModalOpen(true);
   }
 
   function openEditModal(ev: EventItem) {
     setEditingId(ev.id);
-    setForm({ title: ev.title, type: ev.type, date: ev.date.slice(0, 10), mode: ev.mode, description: ev.description });
+    setForm({
+      title: ev.title,
+      type: ev.type,
+      date: toDateInputValue(ev.date),
+      mode: ev.mode,
+      description: ev.description,
+      meetingLink: ev.meetingLink ?? "",
+    });
+    setFormError("");
     setModalOpen(true);
   }
 
   function saveEvent(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) return;
+    if (!isValidMeetingLink(form.meetingLink)) {
+      setFormError("Enter a full meeting URL starting with https://");
+      return;
+    }
+    const payload = { ...form, meetingLink: form.meetingLink.trim() };
     if (editingId) {
-      updateEvent(editingId, form);
+      updateEvent(editingId, payload);
     } else {
-      addEvent(form);
+      addEvent(payload);
     }
     setModalOpen(false);
   }
@@ -82,7 +100,10 @@ export default function TeamEventsPage() {
                 <span className="font-numbers text-xl font-bold">{date.getDate()}</span>
               </div>
               <div className="flex-1 min-w-0">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-orange">{ev.type}</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-orange">{ev.type}</span>
+                  <EventStatusBadge status={getEventStatus(ev.date, { cancelled: ev.isCancelled })} />
+                </div>
                 <h4 className="font-heading font-semibold text-heading-light dark:text-heading-dark truncate">{ev.title}</h4>
                 <p className="flex items-center gap-1.5 text-xs text-paragraph-light dark:text-paragraph-dark mt-1">
                   <MapPin className="h-3.5 w-3.5" /> {ev.mode}
@@ -104,7 +125,7 @@ export default function TeamEventsPage() {
             <input
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
-              className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+              className="input-field mt-2"
               placeholder="AWS Cloud Workshop"
               required
             />
@@ -114,13 +135,12 @@ export default function TeamEventsPage() {
               <label className="text-sm font-medium text-heading-light dark:text-white">Type</label>
               <select
                 value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value as EventItem["type"] })}
-                className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+                onChange={(e) => setForm({ ...form, type: e.target.value as EventType })}
+                className="select-field mt-2"
               >
-                <option>Workshop</option>
-                <option>Hackathon</option>
-                <option>Bootcamp</option>
-                <option>Seminar</option>
+                {EVENT_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -128,11 +148,11 @@ export default function TeamEventsPage() {
               <select
                 value={form.mode}
                 onChange={(e) => setForm({ ...form, mode: e.target.value as EventItem["mode"] })}
-                className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+                className="select-field mt-2"
               >
-                <option>Online</option>
-                <option>Onsite</option>
-                <option>Hybrid</option>
+                <option value="Online">Online</option>
+                <option value="Onsite">Onsite</option>
+                <option value="Hybrid">Hybrid</option>
               </select>
             </div>
           </div>
@@ -142,7 +162,18 @@ export default function TeamEventsPage() {
               type="date"
               value={form.date}
               onChange={(e) => setForm({ ...form, date: e.target.value })}
-              className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+              className="input-field mt-2"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-heading-light dark:text-white">Meeting Link (optional)</label>
+            <input
+              type="url"
+              inputMode="url"
+              value={form.meetingLink}
+              onChange={(e) => setForm({ ...form, meetingLink: e.target.value })}
+              className="input-field mt-2"
+              placeholder="https://meet.google.com/abc-defg-hij"
             />
           </div>
           <div>
@@ -151,9 +182,10 @@ export default function TeamEventsPage() {
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               rows={3}
-              className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white resize-none"
+              className="input-field mt-2 resize-none"
             />
           </div>
+          {formError && <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-400">{formError}</p>}
           <button type="submit" className="btn-primary w-full justify-center">
             {editingId ? "Save Changes" : "Create Event"}
           </button>

@@ -27,7 +27,7 @@ export default function StudentCertificatesPage() {
       <div>
         <h1 className="text-2xl font-bold text-heading-light dark:text-heading-dark">Certificates</h1>
         <p className="text-sm text-paragraph-light dark:text-paragraph-dark mt-1">
-          Certificates you've earned by completing courses — issued automatically the moment you finish every lesson and pass every quiz.
+          Certificates are issued after you complete all online lessons and quizzes, then pass the physical final assessment arranged by AWS SBG.
         </p>
       </div>
 
@@ -35,7 +35,7 @@ export default function StudentCertificatesPage() {
         <div className="card-surface p-10 text-center">
           <Award className="h-9 w-9 text-orange mx-auto mb-3" />
           <p className="text-sm text-paragraph-light dark:text-paragraph-dark">
-            No certificates yet — finish a course's lessons and quizzes to earn one.
+            No certificates yet — complete a course online, pass the physical final assessment, and your certificate will appear here.
           </p>
         </div>
       ) : (

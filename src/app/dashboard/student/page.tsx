@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, Award, CalendarClock, FolderOpen } from "lucide-react";
+import { BookOpen, Award, CalendarClock, Megaphone, FolderOpen } from "lucide-react";
 import { StatCard } from "@/components/StatCard";
 import { ProgressBar } from "@/components/dashboard/ProgressBar";
 import { EventCard } from "@/components/EventCard";
@@ -9,12 +9,15 @@ import { ResourceCard } from "@/components/ResourceCard";
 import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
 import { useEnrollment } from "@/context/EnrollmentContext";
+import { useVtms } from "@/context/VtmsContext";
 
 export default function StudentDashboardPage() {
-  const { events, resources, courses } = useData();
+  const { events, resources, courses, announcements } = useData();
   const { user } = useAuth();
   const { myEnrollments, getCourseProgress, stats } = useEnrollment();
+  const { migrationRequired } = useVtms();
   const firstName = user?.fullName.split(" ")[0] ?? "there";
+  const globalAnnouncements = announcements.filter((item) => !item.courseId);
 
   const enrollments = myEnrollments();
   const enrolledCourses = enrollments
@@ -37,6 +40,34 @@ export default function StudentDashboardPage() {
         <StatCard icon={Award} label="Completed" value={stats.completed} accent="green" index={1} />
         <StatCard icon={Award} label="Certificates" value={stats.certificates} accent="orange" index={2} />
         <StatCard icon={CalendarClock} label="Upcoming Events" value={events.length} accent="purple" index={3} />
+      </div>
+
+      {globalAnnouncements.length > 0 && (
+        <div className="card-surface p-6 border-orange/20">
+          <h3 className="font-heading font-semibold text-heading-light dark:text-heading-dark mb-4 flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-orange" /> Announcements
+          </h3>
+          <div className="space-y-3">
+            {globalAnnouncements.slice(0, 3).map((a) => (
+              <div key={a.id} className="rounded-xl bg-orange/5 border border-orange/10 p-4">
+                <p className="font-semibold text-sm text-heading-light dark:text-heading-dark">{a.title}</p>
+                <p className="text-xs text-paragraph-light dark:text-paragraph-dark mt-1">{a.message}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="card-surface p-6">
+        <h3 className="font-heading font-semibold text-heading-light dark:text-heading-dark">Training</h3>
+        <p className="text-sm text-paragraph-light dark:text-paragraph-dark mt-1">
+          Tasks, projects, your supervisor, the course WhatsApp group, and examination status.
+        </p>
+        {migrationRequired ? (
+          <p className="text-sm text-paragraph-light dark:text-paragraph-dark mt-3">Training records will appear after the database update is applied.</p>
+        ) : (
+          <Link href="/dashboard/student/training" className="text-orange font-semibold text-sm mt-3 inline-block">Open training →</Link>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">

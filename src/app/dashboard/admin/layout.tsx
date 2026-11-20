@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, Users, BookOpen, Route, Globe, CalendarDays, Settings, Star, ClipboardList } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Route, Globe, CalendarDays, Settings, Star, ClipboardList, UserRoundCheck, GraduationCap } from "lucide-react";
 import { Sidebar, SidebarLink } from "@/components/dashboard/Sidebar";
 import { MobileTopbar } from "@/components/dashboard/MobileTopbar";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -8,6 +8,7 @@ import { GlobalSearch } from "@/components/GlobalSearch";
 
 const links: SidebarLink[] = [
   { href: "/dashboard/admin", label: "Overview", icon: LayoutDashboard },
+  { href: "/dashboard/admin/credential-requests", label: "Credential Requests", icon: UserRoundCheck },
   { href: "/dashboard/admin/users", label: "Users", icon: Users },
   { href: "/dashboard/admin/courses", label: "Courses & Resources", icon: BookOpen },
   { href: "/dashboard/admin/enrollments", label: "Enrollments", icon: ClipboardList },
@@ -16,6 +17,7 @@ const links: SidebarLink[] = [
   { href: "/dashboard/admin/reviews", label: "Reviews", icon: Star },
   { href: "/dashboard/admin/events", label: "Events", icon: CalendarDays },
   { href: "/dashboard/admin/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard/admin/training", label: "Training", icon: GraduationCap },
 ];
 
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {

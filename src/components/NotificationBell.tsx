@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Bell, BookOpen, Award, CalendarClock, Star, FileText, Info } from "lucide-react";
+import { Bell, BookOpen, Award, CalendarClock, Star, FileText, Info, ClipboardList, FolderOpen, Megaphone } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { Notification } from "@/types";
@@ -14,6 +14,10 @@ const iconMap: Record<Notification["type"], typeof Bell> = {
   event: CalendarClock,
   review: Star,
   system: Info,
+  task: ClipboardList,
+  project: FolderOpen,
+  exam: Award,
+  announcement: Megaphone,
 };
 
 export function NotificationBell({ dark = false }: { dark?: boolean }) {
@@ -56,7 +60,7 @@ export function NotificationBell({ dark = false }: { dark?: boolean }) {
               <p className="px-4 py-8 text-center text-xs text-paragraph-light dark:text-paragraph-dark">No notifications yet.</p>
             ) : (
               mine.map((n) => {
-                const Icon = iconMap[n.type];
+                const Icon = iconMap[n.type] ?? Info;
                 const body = (
                   <div
                     className={`flex items-start gap-3 px-4 py-3 border-b last:border-0 border-border-light dark:border-border-dark ${!n.read ? "bg-orange/5" : ""}`}

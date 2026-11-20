@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 function dashboardPathForRole(role: string) {
-  if (role === "admin") return "/dashboard/admin/resources";
+  if (role === "admin") return "/dashboard/admin/courses";
   if (role === "team") return "/dashboard/team/resources";
   return "/dashboard/student/resources";
 }

@@ -48,12 +48,24 @@ export default function AdminLearningPathsPage() {
           <Plus className="h-4 w-4" /> Add Path
         </button>
       </div>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {learningPaths.length === 0 && (
-          <p className="col-span-full text-sm text-paragraph-light dark:text-paragraph-dark text-center py-10">
-            No learning paths yet.
+      {learningPaths.length === 0 ? (
+        <div className="card-surface border-dashed p-12 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange/10">
+            <Route className="h-6 w-6 text-orange" />
+          </div>
+          <h2 className="mt-4 font-heading font-semibold text-heading-light dark:text-heading-dark">
+            No learning paths yet
+          </h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-paragraph-light dark:text-paragraph-dark">
+            A learning path bundles related courses into an ordered journey, like Cloud Practitioner → Solutions
+            Architect. Create one to get started.
           </p>
-        )}
+          <button onClick={openAdd} className="btn-primary mt-6 !py-2.5 !px-5 text-sm">
+            <Plus className="h-4 w-4" /> Create your first path
+          </button>
+        </div>
+      ) : (
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {learningPaths.map((p, i) => {
           const Icon = icons[i % icons.length] ?? Route;
           return (
@@ -82,6 +94,7 @@ export default function AdminLearningPathsPage() {
           );
         })}
       </div>
+      )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? "Edit Learning Path" : "Add Learning Path"}>
         <form onSubmit={submit} className="space-y-4">
@@ -90,7 +103,7 @@ export default function AdminLearningPathsPage() {
             <input
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
-              className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+              className="input-field mt-2"
               placeholder="e.g. Solutions Architect"
               required
             />
@@ -101,11 +114,11 @@ export default function AdminLearningPathsPage() {
               <select
                 value={form.level}
                 onChange={(e) => setForm({ ...form, level: e.target.value })}
-                className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+                className="select-field mt-2"
               >
-                <option>Beginner</option>
-                <option>Intermediate</option>
-                <option>Advanced</option>
+                <option value="Beginner">Beginner</option>
+                <option value="Intermediate">Intermediate</option>
+                <option value="Advanced">Advanced</option>
               </select>
             </div>
             <div>
@@ -115,7 +128,7 @@ export default function AdminLearningPathsPage() {
                 min={1}
                 value={form.courses}
                 onChange={(e) => setForm({ ...form, courses: Number(e.target.value) })}
-                className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+                className="input-field mt-2"
               />
             </div>
           </div>

@@ -89,7 +89,7 @@ export default function CourseDetailPage() {
             ) : (
               <>
                 <p className="text-sm text-paragraph-light dark:text-white/60 mb-4">
-                  {user ? "Ready to start learning?" : "Create a free account to enroll and track your progress."}
+                  {user ? "Ready to start learning?" : "Log in with your invited account to enroll and track progress."}
                 </p>
                 <button onClick={handleEnroll} className="btn-primary w-full justify-center">
                   {user ? (
@@ -104,9 +104,9 @@ export default function CourseDetailPage() {
                 </button>
                 {!user && (
                   <p className="text-center text-xs text-paragraph-light dark:text-white/50 mt-3">
-                    No account?{" "}
-                    <Link href={`/register?redirect=${encodeURIComponent(`/courses/${course.id}`)}`} className="text-orange font-semibold">
-                      Sign up free
+                    Need access?{" "}
+                    <Link href="/request-credentials" className="text-orange font-semibold">
+                      Request credentials
                     </Link>
                   </p>
                 )}
@@ -158,16 +158,16 @@ export default function CourseDetailPage() {
             <div className="mt-6 rounded-2xl bg-orange/10 p-6 flex items-start gap-4">
               <Lock className="h-6 w-6 text-orange flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-heading-light dark:text-heading-dark">Sign up to unlock this course</p>
+                <p className="font-semibold text-heading-light dark:text-heading-dark">Request access to unlock this course</p>
                 <p className="text-sm text-paragraph-light dark:text-paragraph-dark mt-1">
-                  Create a free account to access every module, track your progress, and earn a certificate.
+                  AWS SBG is invite-only. Request credentials, then use your secure invitation to access every module.
                 </p>
                 <div className="flex gap-3 mt-4">
                   <Link
-                    href={`/register?redirect=${encodeURIComponent(`/courses/${course.id}`)}`}
+                    href="/request-credentials"
                     className="btn-primary !py-2 !px-4 text-sm"
                   >
-                    Sign Up Free
+                    Request Credentials
                   </Link>
                   <Link
                     href={`/login?redirect=${encodeURIComponent(`/courses/${course.id}`)}`}

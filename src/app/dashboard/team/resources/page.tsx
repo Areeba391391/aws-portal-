@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2, FileText, Video, Presentation, Image as ImageIcon, FileSpreadsheet, FileArchive, FileAudio, Link2 } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { FileUploadInput } from "@/components/FileUploadInput";
 import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
+import { useVtms } from "@/context/VtmsContext";
 import { ResourceType } from "@/types";
 
 const iconMap: Record<ResourceType, typeof FileText> = {
@@ -27,10 +28,22 @@ const emptyForm = { title: "", description: "", type: "PDF" as ResourceType, url
 export default function TeamResourcesPage() {
   const { courses, resources, addResource, deleteResource } = useData();
   const { user } = useAuth();
-  const [courseId, setCourseId] = useState(courses[0]?.id ?? "");
-  const course = courses.find((c) => c.id === courseId);
-  const [moduleId, setModuleId] = useState(course?.syllabus[0]?.id ?? "");
+  const { staff, ready, migrationRequired } = useVtms();
+  const manageable = !ready || migrationRequired
+    ? courses
+    : courses.filter((course) => staff.some((item) => item.courseId === course.id && item.userId === user?.id && item.assignmentRole === "course_admin"));
+  const [courseId, setCourseId] = useState("");
+  const course = manageable.find((c) => c.id === courseId) ?? manageable[0];
+  const [moduleId, setModuleId] = useState("");
   const [form, setForm] = useState<typeof emptyForm | null>(null);
+
+  useEffect(() => {
+    if (manageable.length === 0) return;
+    if (!manageable.some((item) => item.id === courseId)) {
+      setCourseId(manageable[0].id);
+      setModuleId(manageable[0].syllabus[0]?.id ?? "");
+    }
+  }, [manageable, courseId]);
 
   const activeModuleId = course?.syllabus.some((m) => m.id === moduleId) ? moduleId : course?.syllabus[0]?.id ?? "";
   const items = resources.filter((r) => r.courseId === courseId && r.moduleId === activeModuleId);
@@ -46,6 +59,11 @@ export default function TeamResourcesPage() {
       </div>
 
       <div className="card-surface p-5 space-y-4">
+        {ready && !migrationRequired && manageable.length === 0 && (
+          <p className="text-sm text-paragraph-light dark:text-paragraph-dark">
+            Course materials can be uploaded for courses where you are the assigned course admin.
+          </p>
+        )}
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium text-heading-light dark:text-heading-dark">Course</label>
@@ -56,9 +74,9 @@ export default function TeamResourcesPage() {
                 const c = courses.find((cc) => cc.id === e.target.value);
                 setModuleId(c?.syllabus[0]?.id ?? "");
               }}
-              className="mt-2 w-full rounded-xl border border-border-light dark:border-border-dark bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange"
+              className="select-field mt-2"
             >
-              {courses.map((c) => (
+              {manageable.map((c) => (
                 <option key={c.id} value={c.id}>{c.title}</option>
               ))}
             </select>
@@ -68,7 +86,7 @@ export default function TeamResourcesPage() {
             <select
               value={activeModuleId}
               onChange={(e) => setModuleId(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-border-light dark:border-border-dark bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange"
+              className="select-field mt-2"
               disabled={!course || course.syllabus.length === 0}
             >
               {course?.syllabus.length === 0 && <option value="">No modules yet</option>}
@@ -145,7 +163,7 @@ export default function TeamResourcesPage() {
               <select
                 value={form.type}
                 onChange={(e) => setForm({ ...form, type: e.target.value as ResourceType })}
-                className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+                className="select-field mt-2"
               >
                 {(["PDF", "DOC", "PPT", "XLS", "Image", "Video", "Audio", "ZIP", "Text", "Markdown", "Link"] as ResourceType[]).map((t) => (
                   <option key={t} value={t}>{t}</option>

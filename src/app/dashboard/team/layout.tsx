@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, Users, CalendarDays, FolderOpen, Megaphone, FileBarChart } from "lucide-react";
+import { LayoutDashboard, Users, CalendarDays, FolderOpen, Megaphone, FileBarChart, GraduationCap } from "lucide-react";
 import { Sidebar, SidebarLink } from "@/components/dashboard/Sidebar";
 import { MobileTopbar } from "@/components/dashboard/MobileTopbar";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -12,6 +12,7 @@ const links: SidebarLink[] = [
   { href: "/dashboard/team/resources", label: "Resources", icon: FolderOpen },
   { href: "/dashboard/team/announcements", label: "Announcements", icon: Megaphone },
   { href: "/dashboard/team/reports", label: "Reports", icon: FileBarChart },
+  { href: "/dashboard/team/training", label: "Training", icon: GraduationCap },
 ];
 
 export default function TeamDashboardLayout({ children }: { children: React.ReactNode }) {

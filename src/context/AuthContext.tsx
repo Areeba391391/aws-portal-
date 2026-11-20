@@ -11,12 +11,13 @@ export interface AuthUser {
   role: Role;
   department?: string;
   status: "Active" | "Inactive";
+  createdAt?: string;
 }
 
 interface NewUserInput {
   fullName: string;
   email: string;
-  password: string;
+  password?: string;
   role: Role;
   department?: string;
   status?: "Active" | "Inactive";
@@ -26,15 +27,15 @@ interface AuthContextValue {
   user: AuthUser | null;
   users: AuthUser[];
   loading: boolean;
-  signUp: (data: { fullName: string; email: string; password: string }) => Promise<{ error?: string }>;
+  sessionUserId: string | null;
   login: (data: { email: string; password: string }) => Promise<{ error?: string; user?: AuthUser }>;
   logout: () => void;
-  hasAccount: (email: string) => boolean;
   adminAddUser: (data: NewUserInput) => Promise<{ error?: string }>;
   adminUpdateUser: (id: string, data: Partial<Omit<NewUserInput, "password">> & { password?: string }) => Promise<void>;
   adminDeleteUser: (id: string) => Promise<void>;
   updateProfile: (data: { fullName: string; department?: string }) => Promise<void>;
   refreshUsers: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -46,6 +47,7 @@ type ProfileRow = {
   role: Role;
   department: string | null;
   status: "Active" | "Inactive";
+  created_at?: string;
 };
 
 function toAuthUser(p: ProfileRow): AuthUser {
@@ -56,6 +58,7 @@ function toAuthUser(p: ProfileRow): AuthUser {
     role: p.role,
     department: p.department ?? undefined,
     status: p.status,
+    createdAt: p.created_at,
   };
 }
 
@@ -63,19 +66,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState(() => createClient());
   const [user, setUser] = useState<AuthUser | null>(null);
   const [users, setUsers] = useState<AuthUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [profileReady, setProfileReady] = useState(false);
+  const loading = !sessionChecked || (sessionUserId !== null && !profileReady);
 
   const loadProfile = useCallback(
     async (userId: string) => {
       const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
       if (data) setUser(toAuthUser(data as ProfileRow));
+      return data ? toAuthUser(data as ProfileRow) : null;
     },
     [supabase]
   );
 
   const refreshUsers = useCallback(async () => {
-    // Only staff (team/admin) can read every profile — RLS enforces this.
-    // For a plain student this simply comes back empty, which is fine.
     const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
     if (data) setUsers((data as ProfileRow[]).map(toAuthUser));
   }, [supabase]);
@@ -86,77 +91,80 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (session?.user && active) await loadProfile(session.user.id);
-      if (active) setLoading(false);
+      if (!active) return;
+      setSessionUserId(session?.user?.id ?? null);
+      setSessionChecked(true);
     })();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        await loadProfile(session.user.id);
-      } else {
-        setUser(null);
-      }
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Never await Supabase calls here — it deadlocks signInWithPassword.
+      setSessionUserId(session?.user?.id ?? null);
+      setSessionChecked(true);
     });
-
-    refreshUsers();
 
     return () => {
       active = false;
       subscription.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
-  async function signUp({ fullName, email, password }: { fullName: string; email: string; password: string }) {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName, role: "student" } },
-    });
-    if (error) return { error: error.message };
-    if (!data.session) {
-      // Email confirmation is turned on in this Supabase project's Auth
-      // settings — the account exists but needs to be confirmed by email
-      // before a session is issued.
-      return { error: "Account created — please check your email to confirm before logging in." };
+  useEffect(() => {
+    if (!sessionChecked) return;
+
+    if (!sessionUserId) {
+      setUser(null);
+      setProfileReady(true);
+      return;
     }
-    await loadProfile(data.user!.id);
-    return {};
-  }
+
+    let cancelled = false;
+    setProfileReady(false);
+
+    (async () => {
+      const { data } = await supabase.from("profiles").select("*").eq("id", sessionUserId).single();
+      if (cancelled) return;
+      if (data) setUser(toAuthUser(data as ProfileRow));
+      setProfileReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionUserId, sessionChecked, supabase]);
+
+  useEffect(() => {
+    if (user?.role === "team" || user?.role === "admin") {
+      refreshUsers();
+    } else {
+      setUsers([]);
+    }
+  }, [user?.id, user?.role, refreshUsers]);
 
   async function login({ email, password }: { email: string; password: string }) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: "Incorrect email or password. Please try again, or sign up first." };
-    const { data: profile } = await supabase.from("profiles").select("*").eq("id", data.user.id).single();
-    if (!profile) return { error: "Account found but no profile exists yet — contact your admin." };
-    if ((profile as ProfileRow).status === "Inactive") {
-      await supabase.auth.signOut();
-      return { error: "This account has been deactivated. Contact your admin." };
-    }
-    const authUser = toAuthUser(profile as ProfileRow);
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: json.error || "Sign-in failed. Try again." };
+
+    const authUser = json.user as AuthUser;
+    setSessionUserId(authUser.id);
+    setSessionChecked(true);
     setUser(authUser);
+    setProfileReady(true);
     return { user: authUser };
   }
 
   function logout() {
     supabase.auth.signOut();
     setUser(null);
+    setSessionUserId(null);
+    setProfileReady(true);
   }
-
-  function hasAccount(email: string) {
-    // Supabase intentionally doesn't expose a "does this email exist" check
-    // to the client (that would let anyone enumerate accounts). This is now
-    // best-effort only, from whatever profiles this session is allowed to
-    // see (empty for a plain student) — used purely as a UI hint.
-    return users.some((u) => u.email.toLowerCase() === email.toLowerCase());
-  }
-
-  // ---- Admin-only user management (Dashboard → Users) ----
-  // Creating a user with a chosen password requires the Supabase Admin API
-  // (service role key), which must never be exposed to the browser. These
-  // calls go through the server-side route at /api/admin/users.
 
   async function adminAddUser(data: NewUserInput) {
     const res = await fetch("/api/admin/users", {
@@ -166,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     const text = await res.text();
     const json = text ? (() => { try { return JSON.parse(text); } catch { return {}; } })() : {};
-    if (!res.ok) return { error: json.error || `Failed to create user (server returned ${res.status}). Check SUPABASE_SERVICE_ROLE_KEY is set in .env.local.` };
+    if (!res.ok) return { error: json.error || `Failed to invite user (server returned ${res.status}).` };
     await refreshUsers();
     return {};
   }
@@ -196,21 +204,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loadProfile(user.id);
   }
 
+  async function resetPassword(email: string) {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) return { error: error.message };
+    return {};
+  }
+
   return (
     <AuthContext.Provider
       value={{
         user,
         users,
         loading,
-        signUp,
+        sessionUserId,
         login,
         logout,
-        hasAccount,
         adminAddUser,
         adminUpdateUser,
         adminDeleteUser,
         updateProfile,
         refreshUsers,
+        resetPassword,
       }}
     >
       {children}

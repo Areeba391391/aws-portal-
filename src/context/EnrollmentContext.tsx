@@ -13,6 +13,8 @@ export interface Enrollment {
   certificateIssued: boolean;
   certificateIssuedAt?: string;
   certificateNumber?: string;
+  finalAssessmentPassed: boolean;
+  finalAssessmentPassedAt?: string;
 }
 
 interface EnrollmentContextValue {
@@ -25,7 +27,7 @@ interface EnrollmentContextValue {
   submitQuiz: (courseId: string, moduleId: string, score: number, total: number, passMark?: number) => Promise<void>;
   getCourseProgress: (course: Course) => number;
   isCourseComplete: (course: Course) => boolean;
-  checkAndIssueCertificate: (course: Course) => Promise<void>;
+  isAwaitingFinalAssessment: (course: Course) => boolean;
   myEnrollments: () => Enrollment[];
   stats: { inProgress: number; completed: number; certificates: number };
 }
@@ -41,6 +43,8 @@ function fromRow(row: any): Enrollment {
     certificateIssued: row.certificate_issued ?? false,
     certificateIssuedAt: row.certificate_issued_at ?? undefined,
     certificateNumber: row.certificate_number ?? undefined,
+    finalAssessmentPassed: row.final_assessment_passed ?? false,
+    finalAssessmentPassedAt: row.final_assessment_passed_at ?? undefined,
   };
 }
 
@@ -50,17 +54,34 @@ export function EnrollmentProvider({ children }: { children: ReactNode }) {
   const [mine, setMine] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const userId = user?.id ?? null;
+
   const refresh = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setMine([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    const { data } = await supabase.from("enrollments").select("*").eq("student_id", user.id);
-    setMine((data ?? []).map(fromRow));
+    const primary = await supabase
+      .from("enrollments")
+      .select(
+        "course_id,enrolled_at,completed_lesson_ids,quiz_results,certificate_issued,certificate_issued_at,certificate_number,final_assessment_passed,final_assessment_passed_at"
+      )
+      .eq("student_id", userId);
+    let rows = primary.data as any[] | null;
+    if (primary.error?.message?.includes("final_assessment")) {
+      const legacy = await supabase
+        .from("enrollments")
+        .select("course_id,enrolled_at,completed_lesson_ids,quiz_results,certificate_issued,certificate_issued_at,certificate_number")
+        .eq("student_id", userId);
+      rows = legacy.data as any[] | null;
+    } else if (primary.error) {
+      rows = null;
+    }
+    if (rows) setMine(rows.map(fromRow));
     setLoading(false);
-  }, [supabase, user]);
+  }, [supabase, userId]);
 
   useEffect(() => {
     refresh();
@@ -130,19 +151,9 @@ export function EnrollmentProvider({ children }: { children: ReactNode }) {
     return getCourseProgress(course) >= 100 && course.syllabus.filter((m) => m.status !== "Draft").length > 0;
   }
 
-  async function checkAndIssueCertificate(course: Course) {
-    if (!user || course.certificateEnabled === false) return;
+  function isAwaitingFinalAssessment(course: Course): boolean {
     const enr = getEnrollment(course.id);
-    if (!enr || enr.certificateIssued) return;
-    if (isCourseComplete(course)) {
-      const certNumber = `AWSSBG-${course.id.slice(0, 6).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
-      const issuedAt = new Date().toISOString();
-      await persist(
-        course.id,
-        { certificate_issued: true, certificate_issued_at: issuedAt, certificate_number: certNumber },
-        (e) => ({ ...e, certificateIssued: true, certificateIssuedAt: issuedAt, certificateNumber: certNumber })
-      );
-    }
+    return Boolean(enr && isCourseComplete(course) && !enr.certificateIssued);
   }
 
   function myEnrollments() {
@@ -167,7 +178,7 @@ export function EnrollmentProvider({ children }: { children: ReactNode }) {
         submitQuiz,
         getCourseProgress,
         isCourseComplete,
-        checkAndIssueCertificate,
+        isAwaitingFinalAssessment,
         myEnrollments,
         stats,
       }}

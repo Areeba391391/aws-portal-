@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Search, Download, Trash2 } from "lucide-react";
 import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
-import { readAllEnrollments, removeEnrollment, revokeCertificate, reissueCertificate, StoredEnrollment } from "@/lib/crossUserStores";
+import { readAllEnrollments, removeEnrollment, revokeCertificate, passFinalAssessmentAndIssue, StoredEnrollment } from "@/lib/crossUserStores";
 
 interface Row {
   userId: string;
@@ -14,7 +14,7 @@ interface Row {
   courseTitle: string;
   enrolledAt: string;
   progress: string;
-  status: "Completed" | "In Progress";
+  status: "Completed" | "Awaiting Final Assessment" | "In Progress";
 }
 
 export default function AdminEnrollmentsPage() {
@@ -44,6 +44,9 @@ export default function AdminEnrollmentsPage() {
           c.syllabus.reduce((s, m) => s + m.lessons.filter((l) => e.completedLessonIds.includes(l.id)).length, 0) +
           c.syllabus.filter((m) => m.quiz.length > 0 && e.quizResults[m.id]?.passed).length;
         const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+        let status: Row["status"] = "In Progress";
+        if (e.certificateIssued) status = "Completed";
+        else if (pct >= 100) status = "Awaiting Final Assessment";
         list.push({
           userId,
           studentName: u.fullName,
@@ -52,7 +55,7 @@ export default function AdminEnrollmentsPage() {
           courseTitle: c.title,
           enrolledAt: e.enrolledAt,
           progress: `${pct}%`,
-          status: e.certificateIssued ? "Completed" : "In Progress",
+          status,
         });
       });
     });
@@ -76,8 +79,8 @@ export default function AdminEnrollmentsPage() {
     setStore(await readAllEnrollments());
   }
 
-  async function handleReissue(row: Row) {
-    await reissueCertificate(row.userId, row.courseId);
+  async function handlePassAssessment(row: Row) {
+    await passFinalAssessmentAndIssue(row.userId, row.courseId);
     setStore(await readAllEnrollments());
   }
 
@@ -121,7 +124,7 @@ export default function AdminEnrollmentsPage() {
         <select
           value={courseFilter}
           onChange={(e) => setCourseFilter(e.target.value)}
-          className="rounded-xl border border-border-light dark:border-border-dark bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange"
+          className="select-field w-auto"
         >
           <option value="">All Courses</option>
           {courses.map((c) => (
@@ -131,10 +134,11 @@ export default function AdminEnrollmentsPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-xl border border-border-light dark:border-border-dark bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange"
+          className="select-field w-auto"
         >
           <option value="">All Statuses</option>
           <option value="In Progress">In Progress</option>
+          <option value="Awaiting Final Assessment">Awaiting Final Assessment</option>
           <option value="Completed">Completed</option>
         </select>
       </div>
@@ -169,7 +173,15 @@ export default function AdminEnrollmentsPage() {
                 <td className="px-5 py-3 text-paragraph-light dark:text-paragraph-dark">{new Date(r.enrolledAt).toLocaleDateString()}</td>
                 <td className="px-5 py-3 text-paragraph-light dark:text-paragraph-dark">{r.progress}</td>
                 <td className="px-5 py-3">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${r.status === "Completed" ? "bg-emerald-500/10 text-emerald-500" : "bg-orange/10 text-orange"}`}>
+                  <span
+                    className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                      r.status === "Completed"
+                        ? "bg-emerald-500/10 text-emerald-500"
+                        : r.status === "Awaiting Final Assessment"
+                          ? "bg-skyblue/10 text-skyblue"
+                          : "bg-orange/10 text-orange"
+                    }`}
+                  >
                     {r.status}
                   </span>
                 </td>
@@ -179,11 +191,15 @@ export default function AdminEnrollmentsPage() {
                       <button onClick={() => handleRevoke(r)} className="text-xs font-semibold text-red-500 hover:text-red-600" title="Revoke certificate">
                         Revoke
                       </button>
-                    ) : (
-                      <button onClick={() => handleReissue(r)} className="text-xs font-semibold text-emerald-500 hover:text-emerald-600" title="Issue certificate now">
-                        Issue
+                    ) : r.status === "Awaiting Final Assessment" ? (
+                      <button
+                        onClick={() => handlePassAssessment(r)}
+                        className="text-xs font-semibold text-emerald-500 hover:text-emerald-600"
+                        title="Mark physical final assessment passed and issue certificate"
+                      >
+                        Pass & Issue
                       </button>
-                    )}
+                    ) : null}
                     <button onClick={() => handleRemove(r)} className="text-red-500 hover:text-red-600" title="Remove enrollment">
                       <Trash2 className="h-4 w-4" />
                     </button>

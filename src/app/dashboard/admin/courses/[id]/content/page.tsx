@@ -18,6 +18,8 @@ import {
   FileAudio,
   Link2,
   Users,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { FileUploadInput } from "@/components/FileUploadInput";
@@ -71,9 +73,11 @@ export default function AdminCourseContentPage() {
     addModule,
     updateModule,
     deleteModule,
+    moveModule,
     addLesson,
     updateLesson,
     deleteLesson,
+    moveLesson,
     addQuizQuestion,
     updateQuizQuestion,
     deleteQuizQuestion,
@@ -266,26 +270,49 @@ export default function AdminCourseContentPage() {
           </button>
         </form>
 
-        {[...course.syllabus].sort((a, b) => a.order - b.order).map((m) => {
+        {[...course.syllabus].sort((a, b) => a.order - b.order).map((m, moduleIndex, sortedModules) => {
           const moduleResources = resources.filter((r) => r.courseId === course.id && r.moduleId === m.id);
           return (
             <div key={m.id} className="card-surface p-5 space-y-4">
               <div className="flex items-center justify-between gap-3 flex-wrap">
+                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-orange/10 text-xs font-bold text-orange">
+                  {moduleIndex + 1}
+                </span>
                 <input
                   defaultValue={m.title}
                   onBlur={(e) => e.target.value.trim() && updateModule(course.id, m.id, { title: e.target.value.trim() })}
                   className="font-heading font-semibold text-heading-light dark:text-heading-dark bg-transparent outline-none border-b border-transparent focus:border-orange flex-1 min-w-[200px]"
                 />
                 <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => moveModule(course.id, m.id, -1)}
+                    disabled={moduleIndex === 0}
+                    className="text-paragraph-light hover:text-orange disabled:opacity-30 dark:text-paragraph-dark"
+                    title="Move module up"
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => moveModule(course.id, m.id, 1)}
+                    disabled={moduleIndex === sortedModules.length - 1}
+                    className="text-paragraph-light hover:text-orange disabled:opacity-30 dark:text-paragraph-dark"
+                    title="Move module down"
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </button>
                   <select
                     value={m.status}
                     onChange={(e) => updateModule(course.id, m.id, { status: e.target.value as "Active" | "Draft" })}
-                    className="text-xs rounded-lg border border-border-light dark:border-border-dark bg-transparent px-2 py-1 outline-none focus:border-orange"
+                    className="select-field-sm w-auto"
                   >
                     <option value="Active">Active</option>
                     <option value="Draft">Draft</option>
                   </select>
-                  <button onClick={() => deleteModule(course.id, m.id)} className="text-red-500 hover:text-red-600">
+                  <button
+                    onClick={() => window.confirm(`Delete "${m.title}" and everything in it?`) && deleteModule(course.id, m.id)}
+                    className="text-red-500 hover:text-red-600"
+                    title="Delete module"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -293,13 +320,32 @@ export default function AdminCourseContentPage() {
 
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase text-paragraph-light dark:text-paragraph-dark">Lessons</p>
-                {m.lessons.map((l) => {
+                {m.lessons.length === 0 && (
+                  <p className="text-xs text-paragraph-light dark:text-paragraph-dark">No lessons in this module yet.</p>
+                )}
+                {m.lessons.map((l, lessonIndex) => {
                   const Icon = lessonTypeIcon[l.type];
                   return (
                     <div key={l.id} className="flex items-center gap-3 rounded-lg border border-border-light dark:border-border-dark px-3 py-2 text-sm">
                       <Icon className="h-4 w-4 text-orange flex-shrink-0" />
                       <span className="flex-1">{l.title}</span>
                       <span className="text-xs text-paragraph-light dark:text-paragraph-dark uppercase">{l.type}</span>
+                      <button
+                        onClick={() => moveLesson(course.id, m.id, l.id, -1)}
+                        disabled={lessonIndex === 0}
+                        className="text-paragraph-light hover:text-orange disabled:opacity-30 dark:text-paragraph-dark"
+                        title="Move lesson up"
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => moveLesson(course.id, m.id, l.id, 1)}
+                        disabled={lessonIndex === m.lessons.length - 1}
+                        className="text-paragraph-light hover:text-orange disabled:opacity-30 dark:text-paragraph-dark"
+                        title="Move lesson down"
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </button>
                       <button onClick={() => openLessonModal(m.id, l)} className="text-skyblue hover:text-orange"><Pencil className="h-3.5 w-3.5" /></button>
                       <button onClick={() => deleteLesson(course.id, m.id, l.id)} className="text-red-500 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
                     </div>
@@ -370,7 +416,7 @@ export default function AdminCourseContentPage() {
             <select
               value={lessonForm.type}
               onChange={(e) => setLessonForm({ ...lessonForm, type: e.target.value as LessonType })}
-              className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+              className="select-field mt-2"
             >
               <option value="reading">Reading</option>
               <option value="video">Video</option>
@@ -478,7 +524,7 @@ export default function AdminCourseContentPage() {
             <select
               value={resourceForm.type}
               onChange={(e) => setResourceForm({ ...resourceForm, type: e.target.value as ResourceType })}
-              className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+              className="select-field mt-2"
             >
               {(["PDF", "DOC", "PPT", "XLS", "Image", "Video", "Audio", "ZIP", "Text", "Markdown", "Link"] as ResourceType[]).map((t) => (
                 <option key={t} value={t}>{t}</option>
@@ -499,7 +545,7 @@ export default function AdminCourseContentPage() {
             <select
               value={resourceForm.visibility}
               onChange={(e) => setResourceForm({ ...resourceForm, visibility: e.target.value as ResourceItem["visibility"] })}
-              className="mt-2 w-full rounded-xl border border-border-light dark:border-white/20 bg-transparent px-4 py-2.5 text-sm outline-none focus:border-orange dark:text-white"
+              className="select-field mt-2"
             >
               <option value="Enrolled Students">Enrolled Students Only</option>
               <option value="Public">Public (visible to anyone)</option>

@@ -219,4 +219,8 @@ export const siteSettings: SiteSettings = {
   statEvents: "0",
   statCertificates: "0",
   statProjects: "0",
+  platformName: "AWS SBG UET Taxila",
+  universityName: "",
+  maintenanceMode: false,
+  allowRegistrations: true,
 };

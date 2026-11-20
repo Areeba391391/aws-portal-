@@ -1,89 +1,79 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, PlayCircle } from "lucide-react";
+import { ArrowRight, PlayCircle, Cpu, Braces, Cloud, Database, Sparkles } from "lucide-react";
 import { useData } from "@/context/DataContext";
+import { GridBackground } from "./GridBackground";
 
 export function Hero() {
   const { siteSettings } = useData();
-  const stats = [
-    { label: "Members", value: siteSettings.statMembers },
-    { label: "Events", value: siteSettings.statEvents },
-    { label: "Certificates", value: siteSettings.statCertificates },
-    { label: "Projects", value: siteSettings.statProjects },
-  ];
+  const subtitle = siteSettings.platformName?.trim()
+    || (siteSettings.universityName
+      ? `AWS SBG ${siteSettings.universityName}`
+      : "AWS SBG UET Taxila");
 
   return (
-    <section className="relative overflow-hidden bg-gradient-navy pt-36 pb-24 md:pt-44 md:pb-32">
-      <div className="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_1px_1px,white_1px,transparent_0)] [background-size:28px_28px]" />
-      <div className="container-page relative grid md:grid-cols-2 gap-14 items-center">
+    <GridBackground className="pt-36 pb-8 md:pt-44 md:pb-12" minHeight="90vh">
+      <div className="container-page relative grid min-h-[70vh] items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
         <motion.div
           initial={{ opacity: 0, x: -30 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.7 }}
+          className="max-w-3xl"
         >
-          <span className="inline-block rounded-full bg-white/10 px-4 py-1.5 text-xs font-semibold text-orange mb-6 border border-white/10">
-            Student Builders Group
-          </span>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight">
+          <div className="flex items-center gap-3 mb-6">
+            <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-navy border border-orange/30 shadow-glow">
+              <Cpu className="h-6 w-6 text-orange" />
+            </span>
+            <span className="inline-block rounded-full bg-orange/10 px-4 py-1.5 text-xs font-mono font-semibold text-orange border border-orange/20">
+              {subtitle}
+            </span>
+          </div>
+
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-[1.1] font-heading">
             {siteSettings.heroTitle}
           </h1>
-          <p className="mt-6 text-white/70 text-lg leading-relaxed max-w-lg">
+          <p className="mt-6 text-white/70 text-lg leading-relaxed max-w-2xl font-body">
             {siteSettings.heroDescription}
           </p>
+
           <div className="mt-9 flex flex-wrap gap-4">
-            <Link href="/register" className="btn-primary">
-              Join Community <ArrowRight className="h-4 w-4" />
+            <Link href="/request-credentials" className="btn-primary">
+              Request Credentials <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link
-              href="/courses"
-              className="inline-flex items-center gap-2 rounded-xl border-2 border-white/20 px-6 py-3 font-semibold text-white transition-all duration-300 hover:bg-white/10 hover:-translate-y-0.5"
-            >
-              <PlayCircle className="h-4 w-4" /> Explore Learning
+            <Link href="/courses" className="btn-ghost">
+              <PlayCircle className="h-4 w-4" /> Course Library
+            </Link>
+            <Link href="/hackathons" className="btn-ghost border-orange/40 text-orange hover:bg-orange/10">
+              Hackathons
             </Link>
           </div>
 
-          <div className="mt-14 grid grid-cols-4 gap-4 max-w-lg">
-            {stats.map((s, i) => (
-              <motion.div
-                key={s.label}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.15 * i }}
-              >
-                <p className="font-numbers text-xl md:text-2xl font-extrabold text-white">
-                  {s.value}
-                </p>
-                <p className="text-xs text-white/50 mt-1">{s.label}</p>
-              </motion.div>
-            ))}
-          </div>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="relative"
-        >
-          <div className="animate-float">
-            <Image
-              src="/images/banner-hero.png"
-              alt="Students collaborating on cloud computing projects"
-              width={800}
-              height={600}
-              priority
-              className="w-full h-auto rounded-3xl"
-            />
+        <div className="relative mx-auto hidden h-[390px] w-[390px] lg:block" aria-hidden>
+          <div className="hero-orbit hero-orbit-outer">
+            <span className="hero-node left-1/2 top-0 -translate-x-1/2"><Cloud /></span>
+            <span className="hero-node bottom-8 right-0"><Database /></span>
+            <span className="hero-node bottom-8 left-0"><Braces /></span>
           </div>
-          <div className="absolute -bottom-6 -left-6 hidden sm:block card-surface !bg-white/95 dark:!bg-navy-light/95 p-4 animate-float [animation-delay:1s]">
-            <p className="text-xs text-paragraph-light dark:text-white/60">Certificates issued</p>
-            <p className="font-numbers text-xl font-bold text-navy dark:text-white">{siteSettings.statCertificates}</p>
+          <div className="hero-orbit hero-orbit-inner">
+            <span className="hero-node left-1/2 top-0 -translate-x-1/2"><Sparkles /></span>
           </div>
-        </motion.div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="hero-core">
+              <span className="text-xs font-mono text-orange">BUILD</span>
+              <strong className="text-3xl text-white">AWS</strong>
+              <span className="text-xs font-mono text-white/45">LEARN · SHIP</span>
+            </div>
+          </div>
+        </div>
       </div>
-    </section>
+
+      <div className="brand-bar mt-8 font-mono">
+        {subtitle} — Learn. Build. Innovate on AWS Cloud
+      </div>
+    </GridBackground>
   );
 }
